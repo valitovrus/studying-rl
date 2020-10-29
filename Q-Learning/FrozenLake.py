@@ -3,6 +3,35 @@ import random
 import numpy as np
 import gym
 import matplotlib.pyplot as plt
+
+# %% 
+class QStatistics:
+    
+    def __init__(self):
+        self.rewards = []
+        self.explorationRate = []
+        self.stepsPerEpoch = []
+        self.exploredAtEpoch = 0
+        self.stepsAtEpoch = 0
+        self.rewardsAtEpoch = 0
+
+    def NextEpoch(self):
+        self.rewards.append(self.rewardsAtEpoch)
+        self.explorationRate.append(self.exploredAtEpoch)
+        self.stepsPerEpoch.append(self.stepsAtEpoch)
+
+        self.exploredAtEpoch = 0
+        self.stepsAtEpoch = 0
+        self.rewardsAtEpoch = 0
+    
+    def StepTaken(self, reward):
+        self.rewardsAtEpoch+=reward
+        self.stepsAtEpoch+=1
+
+    def Explored(self):
+        self.exploredAtEpoch+=1
+
+
 # %%
 class ExpTradeOff:
     def __init__(self, startEpsilon, endEpsilon, decayRate):
@@ -34,46 +63,40 @@ qtable = np.zeros((stateSize, actionSize))
 expTradeOff = ExpTradeOff(1.0, 0.01, 0.005)
 
 # statistics
-rewards = []
-explorationRate = []
-stepsPerEpoch = []
+stat = QStatistics()
+
 for epoch in range(epochs):
     state = frozenLake.reset()
     step = 0
     done = False
-    total_rewards = 0
-    exploredAtEpoch = 0
-    stepsAtEpoch = 0
     for step in range(maxSteps):
         if expTradeOff.ShouldExplore():
             action = frozenLake.action_space.sample()
-            exploredAtEpoch+=1
+            stat.Explored()
         else:
             action = np.argmax(qtable[state,:])
         
         newState, reward, done, info = frozenLake.step(action)
         qtable[state,action] = qtable[state,action] + learningRate * (reward + gamma * np.max(qtable[newState,:])-qtable[state,action])
-        total_rewards += reward
+        stat.StepTaken(reward)
         state = newState
-        stepsAtEpoch += 1
+
         if done:
             break
 
     expTradeOff.NextEpoch(epoch)
-    rewards.append(total_rewards)
-    explorationRate.append(exploredAtEpoch)
-    stepsPerEpoch.append(stepsAtEpoch)
+    stat.NextEpoch()
 # %%
 print(qtable[:2,:])
-print ("Score over time: " +  str(sum(rewards)/epochs))
-plt.plot(rewards)
+print ("Score over time: " +  str(sum(stat.rewards)/epochs))
+plt.plot(stat.rewards)
 #%%
 print ("Exploration/exploitation trade-off")
-plt.plot(explorationRate)
+plt.plot(stat.explorationRate)
 
 # %% 
 print ("Steps per epoch")
-plt.plot(stepsPerEpoch)
+plt.plot(stat.stepsPerEpoch)
 # %%
 totalReward = 0
 for episode in range(1000):
